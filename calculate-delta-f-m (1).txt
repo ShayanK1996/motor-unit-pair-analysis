@@ -1,0 +1,4 @@
+function delta_F = calculate_delta_F(control_rate_smooth, test_rate_smooth)
+    % Calculate ΔF between two motor units
+    delta_F = mean(test_rate_smooth - control_rate_smooth);
+end

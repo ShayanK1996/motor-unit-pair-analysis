@@ -1,0 +1,17 @@
+function [filtered_AUX, spike_train] = preprocessing(FORCE, MUPulses1, fsamp)
+    % Preprocessing function
+    
+    % Filter AUX signal
+    AUX = [FORCE(1,:)', FORCE(1,:)'] * 1000;
+    cutoff_frequency = 15; % Hz
+    filter_order = 4;
+    normalized_cutoff = cutoff_frequency / (fsamp/2);
+    [b, a] = butter(filter_order, normalized_cutoff, 'low');
+    filtered_AUX = filtfilt(b, a, AUX);
+    
+    % Create spike train
+    spike_train = zeros(size(MUPulses1, 2), length(filtered_AUX));
+    for MU = 1:size(MUPulses1,2)
+        spike_train(MU,MUPulses1{MU}) = 1;
+    end
+end

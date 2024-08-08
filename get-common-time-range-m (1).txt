@@ -1,0 +1,5 @@
+function [common_start, common_end] = get_common_time_range(control_times, test_times)
+    % Get the common time range for two motor units
+    common_start = max(control_times(1), test_times(1));
+    common_end = min(control_times(end), test_times(end));
+end

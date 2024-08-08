@@ -1,0 +1,13 @@
+function [fitresult, gof] = fit_exp_plateau(x, y)
+    % Fit a decaying exponential plateau function
+    [xData, yData] = prepareCurveData(x, y);
+
+    % Set up fittype and options
+    ft = fittype('a*exp(-b*x) + c', 'independent', 'x', 'dependent', 'y');
+    opts = fitoptions('Method', 'NonlinearLeastSquares');
+    opts.Display = 'Off';
+    opts.StartPoint = [max(y) - min(y), 1, min(y)];
+
+    % Fit model to data
+    [fitresult, gof] = fit(xData, yData, ft, opts);
+end

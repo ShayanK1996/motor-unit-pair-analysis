@@ -1,0 +1,74 @@
+function results = pair_analysis(spike_train, filtered_AUX, fsamp, recruitment_times, last_spike_times)
+    % Pair analysis function
+    
+    results = struct('pair', {}, 'delta_F', {}, 'recruitment_time_diff', {}, ...
+                     'derecruitment_time_diff', {}, 'quality_score', {}, 'quality_reasons', {}, ...
+                     'peak_freq_control', {}, 'peak_freq_test', {}, 'peak_time_control', {}, ...
+                     'peak_time_test', {}, 'recruitment_freq_control', {}, 'recruitment_freq_test', {}, ...
+                     'derecruitment_freq_control', {}, 'derecruitment_freq_test', {}, 'rate_correlation', {});
+
+    for control = 1:size(spike_train, 1)-1
+        for test = control+1:size(spike_train, 1)
+            % Skip if either unit wasn't recruited
+            if isnan(recruitment_times(control)) || isnan(recruitment_times(test))
+                continue;
+            end
+
+            % Analyze pair
+            pair_result = analyze_pair(spike_train, filtered_AUX, fsamp, control, test, recruitment_times, last_spike_times);
+            
+            % Add pair result to results structure
+            results(end+1) = pair_result;
+        end
+    end
+
+    % Sort results by quality score
+    [~, sort_idx] = sort([results.quality_score], 'descend');
+    results = results(sort_idx);
+end
+
+function pair_result = analyze_pair(spike_train, filtered_AUX, fsamp, control, test, recruitment_times, last_spike_times)
+    % Analyze a single pair of motor units
+
+    % Get firing times for control and test units
+    control_times = find(spike_train(control, :));
+    test_times = find(spike_train(test, :));
+
+    % Calculate instantaneous firing rates and smooth
+    [control_rate_smooth, test_rate_smooth, control_times_smooth, test_times_smooth] = calculate_smooth_rates(control_times, test_times, fsamp);
+
+    % Calculate ΔF
+    delta_F = calculate_delta_F(control_rate_smooth, test_rate_smooth);
+
+    % Check recruitment and derecruitment time differences
+    recruitment_time_diff = (recruitment_times(test) - recruitment_times(control)) / fsamp;
+    derecruitment_time_diff = (last_spike_times(control) - last_spike_times(test)) / fsamp;
+
+    % Calculate peak firing frequency
+    [peak_freq_control, peak_time_control] = max(control_rate_smooth);
+    [peak_freq_test, peak_time_test] = max(test_rate_smooth);
+
+    % Calculate recruitment and derecruitment frequencies
+    [recruitment_freq_control, recruitment_freq_test, derecruitment_freq_control, derecruitment_freq_test] = ...
+        calculate_recruitment_derecruitment_freq(control_times, test_times, fsamp);
+
+    % Calculate rate-to-rate correlation
+    rate_correlation = calculate_rate_correlation(control_rate_smooth, test_rate_smooth, control_times_smooth, test_times_smooth);
+
+    % Assess pair quality
+    [quality_score, quality_reasons] = assess_pair_quality(recruitment_time_diff, derecruitment_time_diff, control_rate_smooth, test_rate_smooth, delta_F, rate_correlation);
+
+    % Create pair result structure
+    pair_result = struct('pair', [control, test], 'delta_F', delta_F, ...
+                         'recruitment_time_diff', recruitment_time_diff, ...
+                         'derecruitment_time_diff', derecruitment_time_diff, ...
+                         'quality_score', quality_score, 'quality_reasons', {quality_reasons}, ...
+                         'peak_freq_control', peak_freq_control, 'peak_freq_test', peak_freq_test, ...
+                         'peak_time_control', control_times_smooth(peak_time_control), ...
+                         'peak_time_test', test_times_smooth(peak_time_test), ...
+                         'recruitment_freq_control', recruitment_freq_control, ...
+                         'recruitment_freq_test', recruitment_freq_test, ...
+                         'derecruitment_freq_control', derecruitment_freq_control, ...
+                         'derecruitment_freq_test', derecruitment_freq_test, ...
+                         'rate_correlation', rate_correlation);
+end

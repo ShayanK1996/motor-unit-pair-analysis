@@ -1,0 +1,22 @@
+% Main script to run the motor unit pair analysis
+
+% Add all subdirectories to the MATLAB path
+addpath(genpath('src'));
+
+% Load data (replace with your data loading method)
+load('data/your_data_file.mat');
+
+% Preprocessing
+[filtered_AUX, spike_train] = preprocessing(FORCE, MUPulses1, fsamp);
+
+% Spike train analysis
+[recruitment_times, recruitment_threshold, last_spike_times] = spike_train_analysis(spike_train, filtered_AUX, fsamp);
+
+% Pair analysis
+results = pair_analysis(spike_train, filtered_AUX, fsamp, recruitment_times, last_spike_times);
+
+% Plot results
+plot_results(results, spike_train, filtered_AUX, fsamp);
+
+% Statistical analysis
+statistical_analysis(results);

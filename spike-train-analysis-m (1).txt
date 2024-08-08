@@ -1,0 +1,45 @@
+function [recruitment_times, recruitment_threshold, last_spike_times] = spike_train_analysis(spike_train, filtered_AUX, fsamp)
+    % Spike train analysis function
+    
+    recruitment_times = zeros(1, size(spike_train, 1));
+    recruitment_threshold = zeros(1, size(spike_train, 1));
+    last_spike_times = zeros(1, size(spike_train, 1));
+
+    for MU = 1:size(spike_train, 1)
+        spikes = find(spike_train(MU, :));
+        if ~isempty(spikes)
+            recruitment_times(MU) = spikes(1);
+            recruitment_threshold(MU) = filtered_AUX(spikes(1));
+            last_spike_times(MU) = spikes(end);
+        else
+            recruitment_times(MU) = NaN;
+            recruitment_threshold(MU) = NaN;
+            last_spike_times(MU) = NaN;
+        end
+    end
+    
+    % Plot recruitment threshold and times
+    plot_recruitment(recruitment_threshold, recruitment_times, fsamp);
+    
+    % Display statistics
+    display_statistics(recruitment_threshold, recruitment_times, fsamp);
+end
+
+function plot_recruitment(recruitment_threshold, recruitment_times, fsamp)
+    figure('Color','w');
+    subplot(2,1,1);
+    plot(1:length(recruitment_threshold), recruitment_threshold, 'ko')
+    xlabel('Motor unit number'); ylabel('Recruitment threshold (%MVC)');
+    title('Motor Unit Recruitment Thresholds');
+
+    subplot(2,1,2);
+    plot(1:length(recruitment_times), recruitment_times/fsamp, 'ko')
+    xlabel('Motor unit number'); ylabel('Recruitment time (s)');
+    title('Motor Unit Recruitment Times');
+end
+
+function display_statistics(recruitment_threshold, recruitment_times, fsamp)
+    disp(['Number of recruited motor units: ' num2str(sum(~isnan(recruitment_threshold)))]);
+    disp(['Mean recruitment threshold: ' num2str(mean(recruitment_threshold(~isnan(recruitment_threshold))))]);
+    disp(['Mean recruitment time: ' num2str(mean(recruitment_times(~isnan(recruitment_times)))/fsamp) ' s']);
+end

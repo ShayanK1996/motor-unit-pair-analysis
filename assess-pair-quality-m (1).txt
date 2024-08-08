@@ -1,0 +1,37 @@
+function [quality_score, quality_reasons] = assess_pair_quality(recruitment_time_diff, derecruitment_time_diff, control_rate, test_rate, delta_F, rate_correlation)
+    % Assess the quality of a motor unit pair
+    quality_score = 0;
+    quality_reasons = {};
+
+    % Check recruitment time difference
+    if recruitment_time_diff < 1
+        quality_score = quality_score + 1;
+        quality_reasons{end+1} = 'Good recruitment time difference';
+    else
+        quality_reasons{end+1} = 'Poor recruitment time difference';
+    end
+
+    % Check derecruitment time difference
+    if derecruitment_time_diff < 1.5
+        quality_score = quality_score + 1;
+        quality_reasons{end+1} = 'Good derecruitment time difference';
+    else
+        quality_reasons{end+1} = 'Poor derecruitment time difference';
+    end
+
+    % Check rate-to-rate correlation
+    if rate_correlation > 0.7
+        quality_score = quality_score + 1;
+        quality_reasons{end+1} = 'Good rate-to-rate correlation';
+    else
+        quality_reasons{end+1} = 'Poor rate-to-rate correlation';
+    end
+
+    % Check ΔF stability
+    if std(test_rate - control_rate) < 2
+        quality_score = quality_score + 1;
+        quality_reasons{end+1} = 'Stable ΔF';
+    else
+        quality_reasons{end+1} = 'Unstable ΔF';
+    end
+end

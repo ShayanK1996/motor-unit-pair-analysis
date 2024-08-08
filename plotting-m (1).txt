@@ -1,0 +1,157 @@
+function plot_results(results, spike_train, filtered_AUX, fsamp)
+    % Plotting function for motor unit pair analysis results
+    
+    current_pair = 1;
+    while true
+        % Display current pair information
+        display_pair_info(results(current_pair));
+        
+        % Plot the current pair
+        plot_pair(results(current_pair), spike_train, filtered_AUX, fsamp);
+        
+        % User input handling
+        key = input('Press n for next, p for previous, s to save current plot, or q to quit: ', 's');
+        
+        switch lower(key)
+            case 'n'
+                if current_pair < length(results)
+                    current_pair = current_pair + 1;
+                else
+                    fprintf('Already at the last pair.\n');
+                end
+            case 'p'
+                if current_pair > 1
+                    current_pair = current_pair - 1;
+                else
+                    fprintf('Already at the first pair.\n');
+                end
+            case 's'
+                saveas(gcf, sprintf('pair_%d_%d.png', results(current_pair).pair(1), results(current_pair).pair(2)));
+                fprintf('Plot saved as pair_%d_%d.png\n', results(current_pair).pair(1), results(current_pair).pair(2));
+            case 'q'
+                break;
+            otherwise
+                fprintf('Invalid input. Please try again.\n');
+        end
+        
+        close(gcf);
+    end
+    
+    % Plot summary figures
+    plot_summary(results);
+end
+
+function display_pair_info(pair_result)
+    % Display information for the current pair
+    fprintf('Showing pair %d-%d\n', pair_result.pair(1), pair_result.pair(2));
+    fprintf('ΔF = %.2f pps\n', pair_result.delta_F);
+    fprintf('Recruitment time difference: %.2f s\n', pair_result.recruitment_time_diff);
+    fprintf('Derecruitment time difference: %.2f s\n', pair_result.derecruitment_time_diff);
+    fprintf('Quality score: %d/4\n', pair_result.quality_score);
+    fprintf('Quality assessment:\n');
+    for i = 1:length(pair_result.quality_reasons)
+        fprintf('  - %s\n', pair_result.quality_reasons{i});
+    end
+    % ... (display other pair information)
+end
+
+function plot_pair(pair_result, spike_train, filtered_AUX, fsamp)
+    % Plot the current pair
+    control = pair_result.pair(1);
+    test = pair_result.pair(2);
+    
+    control_times = find(spike_train(control, :));
+    test_times = find(spike_train(test, :));
+    control_rate = 1 ./ diff(control_times / fsamp);
+    test_rate = 1 ./ diff(test_times / fsamp);
+    control_times_smooth = control_times(1:end-1) / fsamp;
+    test_times_smooth = test_times(1:end-1) / fsamp;
+    control_rate_smooth = poly5_smooth(control_times_smooth, control_rate);
+    test_rate_smooth = poly5_smooth(test_times_smooth, test_rate);
+    
+    figure('Color', 'w');
+    yyaxis left
+    scatter(control_times(1:end-1)/fsamp, control_rate, 10, 'b', 'filled', 'MarkerFaceAlpha', 0.3);
+    hold on;
+    scatter(test_times(1:end-1)/fsamp, test_rate, 10, 'r', 'filled', 'MarkerFaceAlpha', 0.3);
+    plot(control_times_smooth, control_rate_smooth, 'b', 'LineWidth', 2);
+    plot(test_times_smooth, test_rate_smooth, 'r', 'LineWidth', 2);
+    plot(pair_result.peak_time_control, pair_result.peak_freq_control, 'b*', 'MarkerSize', 10);
+    plot(pair_result.peak_time_test, pair_result.peak_freq_test, 'r*', 'MarkerSize', 10);
+    plot(control_times(1)/fsamp, pair_result.recruitment_freq_control, 'bo', 'MarkerSize', 10);
+    plot(test_times(1)/fsamp, pair_result.recruitment_freq_test, 'ro', 'MarkerSize', 10);
+    plot(control_times(end)/fsamp, pair_result.derecruitment_freq_control, 'bs', 'MarkerSize', 10);
+    plot(test_times(end)/fsamp, pair_result.derecruitment_freq_test, 'rs', 'MarkerSize', 10);
+    ylabel('Discharge Rate (pps)');
+    ylim([0 35]);
+
+    yyaxis right
+    plot((0:length(filtered_AUX)-1)/fsamp, filtered_AUX, 'g', 'LineWidth', 1.5);
+    ylabel('Torque (%MVT)');
+
+    xlabel('Time (s)');
+    title_str = sprintf('Units %d-%d: ΔF = %.2f pps, Correlation = %.2f, Quality Score: %d/4', ...
+                        control, test, pair_result.delta_F, ...
+                        pair_result.rate_correlation, ...
+                        pair_result.quality_score);
+    title(title_str);
+
+    legend('Control Unit', 'Test Unit', 'Control Smooth', 'Test Smooth', 'Control Peak', 'Test Peak', ...
+           'Control Recruitment', 'Test Recruitment', 'Control Derecruitment', 'Test Derecruitment', 'Torque', ...
+           'Location', 'northwest');
+    grid on;
+end
+
+function plot_summary(results)
+    % Plot summary figures
+    delta_F_values = [results.delta_F];
+    recruitment_time_diffs = [results.recruitment_time_diff];
+    derecruitment_time_diffs = [results.derecruitment_time_diff];
+    quality_scores = [results.quality_score];
+
+    % Fit decaying exponential plateau to ΔF vs recruitment time difference
+    [fit_result, gof] = fit_exp_plateau(recruitment_time_diffs', delta_F_values');
+
+    % Create scatter plots with fitted function
+    figure('Color', 'w', 'Position', [100, 100, 1200, 500]);
+
+    % ΔF vs Recruitment Time Difference
+    subplot(1, 2, 1);
+    scatter(recruitment_time_diffs, delta_F_values, 50, quality_scores, 'filled');
+    hold on;
+    x_fit = linspace(min(recruitment_time_diffs), max(recruitment_time_diffs), 100);
+    y_fit = fit_result(x_fit);
+    plot(x_fit, y_fit, 'r-', 'LineWidth', 2);
+    xlabel('Recruitment Time Difference (s)');
+    ylabel('ΔF (pps)');
+    title({'ΔF vs Recruitment Time Difference', ...
+           sprintf('Fit: %.2f*exp(-%.2f*x) + %.2f', ...
+           fit_result.a, fit_result.b, fit_result.c)});
+    colorbar('Ticks', 1:4, 'TickLabels', {'Poor', 'Fair', 'Good', 'Excellent'});
+    legend('Data', 'Exponential Fit', 'Location', 'best');
+    grid on;
+
+    % ΔF vs De-recruitment Time Difference
+    subplot(1, 2, 2);
+    scatter(derecruitment_time_diffs, delta_F_values, 50, quality_scores, 'filled');
+    xlabel('De-recruitment Time Difference (s)');
+    ylabel('ΔF (pps)');
+    title(sprintf('ΔF vs De-recruitment Time Difference\nCorrelation: %.2f', corr(delta_F_values', derecruitment_time_diffs')));
+    colorbar('Ticks', 1:4, 'TickLabels', {'Poor', 'Fair', 'Good', 'Excellent'});
+    grid on;
+
+    % Display correlation and fit results
+    fprintf('\nAnalysis Results:\n');
+    fprintf('Correlation between ΔF and Recruitment Time Difference: %.2f\n', corr(delta_F_values', recruitment_time_diffs'));
+    fprintf('Correlation between ΔF and De-recruitment Time Difference: %.2f\n', corr(delta_F_values', derecruitment_time_diffs'));
+    fprintf('\nExponential Plateau Fit for ΔF vs Recruitment Time Difference:\n');
+    fprintf('Equation: ΔF = %.2f * exp(-%.2f * t) + %.2f\n', fit_result.a, fit_result.b, fit_result.c);
+    fprintf('R-squared: %.4f\n', gof.rsquare);
+
+    % Ask user if they want to save the plot
+    save_plot = input('Do you want to save this plot? (y/n): ', 's');
+    if strcmpi(save_plot, 'y')
+        saveas(gcf, 'delta_F_vs_time_differences_with_fit.png');
+        fprintf('Plot saved as delta_F_vs_time_differences_with_fit.png\n');
+    end
+end
